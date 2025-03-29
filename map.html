@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geofence Map with Search</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw/dist/leaflet.draw.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css">
+    <style>
+        /* General Styles */
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f9;
+            color: #333;
+        }
+
+        header {
+            background-color: #87CEEB;
+            color: white;
+            text-align: center;
+            padding: 20px 10px;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 2rem;
+        }
+
+        #map-container {
+            padding: 20px;
+        }
+
+        #map {
+            height: 500px;
+            border-radius: 10px;
+            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        section {
+            padding: 20px;
+            margin: 20px auto;
+            max-width: 800px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        section h2 {
+            text-align: center;
+            font-size: 1.5rem;
+            color: #87CEEB;
+        }
+
+        pre {
+            background: #f9f9f9;
+            padding: 15px;
+            border: 1px solid #ddd;
+            font-size: 0.9rem;
+            overflow: auto;
+            border-radius: 5px;
+        }
+
+        button {
+            display: block;
+            margin: 20px auto;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        #status {
+            text-align: center;
+            font-size: 1rem;
+            font-weight: bold;
+            color: #007bff;
+        }
+
+        footer {
+            text-align: center;
+            padding: 10px;
+            background-color: #87CEEB;
+            color: white;
+            margin-top: 20px;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            section {
+                margin: 10px;
+                padding: 15px;
+            }
+
+            #map {
+                height: 400px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Geofence Map</h1>
+    </header>
+    <section id="map-container">
+        <div id="map"></div>
+    </section>
+    <section>
+        <h2>Geofence Coordinates</h2>
+        <pre id="coordinates">No geofence set yet.</pre>
+        <button onclick="saveGeofence()">Save Geofence</button>
+        <p id="status"></p>
+    </section>
+    <footer>
+        &copy; 2025 Geofence Map App
+    </footer>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-draw/dist/leaflet.draw.js"></script>
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+    <script>
+        let map, userMarker;
+        
+        // Function to initialize the map
+        function initMap(lat, lng) {
+            map = L.map('map').setView([lat, lng], 12); 
+
+            // Add OpenStreetMap tile layer
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+            }).addTo(map);
+
+            // Add Leaflet Control Geocoder for location search
+            L.Control.geocoder({ defaultMarkGeocode: true }).addTo(map);
+
+            // Feature group for drawn layers
+            const drawnItems = new L.FeatureGroup();
+            map.addLayer(drawnItems);
+
+            // Enable drawing controls
+            const drawControl = new L.Control.Draw({
+                edit: { featureGroup: drawnItems },
+                draw: { polygon: true, polyline: false, circle: false, marker: false, rectangle: false },
+            });
+            map.addControl(drawControl);
+
+            // Geofence coordinates
+            let geofenceCoords = [];
+
+            // Handle polygon creation
+            map.on(L.Draw.Event.CREATED, function (event) {
+                const layer = event.layer;
+                drawnItems.clearLayers(); // Remove previous geofence
+                drawnItems.addLayer(layer);
+
+                geofenceCoords = layer.getLatLngs()[0].map(latlng => ({ lat: latlng.lat, lng: latlng.lng }));
+
+                // Display coordinates in the "coordinates" section
+                const coordinatesDisplay = geofenceCoords.map(coord => `Latitude: ${coord.lat}, Longitude: ${coord.lng}`).join('\n');
+                document.getElementById('coordinates').textContent = coordinatesDisplay;
+            });
+
+            // Add marker for user location
+            userMarker = L.marker([lat, lng]).addTo(map)
+                .bindPopup("Your Location")
+                .openPopup();
+        }
+
+        // Function to get user's current location
+        function getUserLocation() {
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const lat = position.coords.latitude;
+                        const lng = position.coords.longitude;
+                        initMap(lat, lng);
+                    },
+                    (error) => {
+                        console.warn("Geolocation permission denied. Using default location.");
+                        initMap(13.0827, 80.2707); // Default: Chennai
+                    }
+                );
+            } else {
+                console.warn("Geolocation is not supported by this browser.");
+                initMap(13.0827, 80.2707); // Default: Chennai
+            }
+        }
+
+        getUserLocation(); // Call the function on page load
+
+        // Save geofence to the server
+        function saveGeofence() {
+            if (!map || !userMarker) {
+                alert("Map not loaded yet!");
+                return;
+            }
+
+            const geofenceCoords = document.getElementById('coordinates').textContent;
+            if (geofenceCoords.includes("No geofence")) {
+                alert('No geofence set!');
+                return;
+            }
+
+            fetch('/geofence', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ coordinates: geofenceCoords }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('status').textContent = data.message || 'Geofence saved!';
+            })
+            .catch(error => {
+                document.getElementById('status').textContent = 'Error saving geofence!';
+                console.error('Error:', error);
+            });
+        }
+    </script>
+</body>
+</html>
